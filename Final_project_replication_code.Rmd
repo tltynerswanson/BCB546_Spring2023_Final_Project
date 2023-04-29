@@ -1,0 +1,119 @@
+---
+title: "BCB546_Spring2023_Final_Project"
+author: "Isabella Burger & Tamara Tyner"
+date: "2023-04-29"
+output: html_document
+---
+
+We decided to replicate the analysis that looked at the effect of coffee yield on species richness, specifically woody species richness, herbaceous plant species richness, bryophyte species richness, and total species richness. We then replicated the figure that represents this data.
+
+We started off by installing and uploading the necessary packages to conduct our work.
+```{r}
+install.packages("mgcv")
+library(mgcv)
+install.packages("vegan")
+library(vegan)
+install.packages("janitor")
+library(janitor)
+install.packages("ggpubr")
+library(ggpubr)
+install.packages("dplyr")
+library(dplyr)
+install.packages("ggplot2")
+library(ggplot2)
+```
+
+
+In the following section, we uploaded the data necessary to conduct the analysis. All data files are pulled from github and were available in the Dryad depository. We also inspected the structure of the data in order to determine next steps for analyses.
+```{r}
+species_richness <- readxl::read_xlsx("~/BCB546_Spring2023_Final_Project/Original Data Files/Coffee_yield.xlsx")
+View(species_richness)
+str(species_richness)
+coffee_yield <- readxl::read_xlsx("~/BCB546_Spring2023_Final_Project/Original Data Files/Plant_species_richness.xlsx")
+View(coffee_yield)
+str(coffee_yield)
+
+```
+
+After uploading and inspecting the files, we learned that all variables for the analyses are numerical, with the exception of Site ID (character). We also learned that Site ID is present in both files, so we used "inner_join" to combine them into one file by "Site ID". We then renamed "Site ID" to "Site_ID" to avoid any potential error. 
+```{r}
+compiled_file <- inner_join(species_richness, coffee_yield, by = "Site ID")
+View(compiled_file)
+colnames(compiled_file)[1] = "Site_ID"
+```
+
+Next, we ran the analyses using generalized additive models (gam) from the mgcv package. We followed the directions specified in the paper, with species richness as the response variable, mean coffee yield as the explanatory variable, a gaussian family with a identity link, and restricted maximum likelihood (REML) to estimate the smoothing parameter. 
+```{r}
+woody_sp <- gam(Woody_Spps ~ Mean_CC_Yield, family = gaussian(link = "identity"), method = "REML", data = compiled_file)
+summary(woody_sp)
+herb_sp <- gam(Veg_Spps ~ Mean_CC_Yield, family = gaussian(link = "identity"), method = "REML", data = compiled_file)
+summary(herb_sp)
+bryo_sp <- gam(Bryo_Spps ~ Mean_CC_Yield, family = gaussian(link = "identity"), method = "REML", data = compiled_file)
+summary(bryo_sp)
+total_spp <- gam(Total_Spps_richness ~ Mean_CC_Yield, family = gaussian(link = "identity"), method = "REML", data = compiled_file)
+summary(total_spp)
+
+```
+
+The following chunks of code replicate each part of Figure 3. We pulled data from our compiled file (with species richness and coffee yield data) and added Mean coffee yield on the x axis and the specific species richness variable on the y axis (woody, herbaceous, bryophyte, and total). We then used geom_point to add the values to the figure. Following the manuscript, we added regression slopes with 95% confidence intervals from GAM, shown with solid and dashed trend lines for the significant relationships. The stat_smooth command allowed us to specify a "gam" regression slope, and the stat_cor command added the p-values (p.label) and R-squared (rr.label) values. We also included p.accurancy and r.accuracy commands so our output closely mirrored that of the manuscript. Label.x and label.y commands in stat_cor moved the text to the desired location. Next, we labeled the x and y axes using "labs", specified the theme that closely matched that used in the manuscript, and used "panel.grid.major/minor = element_blank()" to remove the grid lines. Lastly, we specified the y axes to match that in the paper using "scale_y_continuous". The limits command adds the maximum and minimum values of the y-axis, and "breaks" adds the specific numeric breaks. 
+```{r}
+#woody species richness graph
+woody_plot <- ggplot(compiled_file, aes(x = Mean_CC_Yield, y = Woody_Spps)) +
+  geom_point(aes(x = Mean_CC_Yield, y = Woody_Spps), size = 2) +
+  stat_smooth(method = "gam", geom = "smooth") + 
+  stat_cor(aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~")), p.accuracy = 0.001, label.x = 1750) + 
+  labs(y = "Woody species richness", x = "Average coffee yield (kg/ha)") + 
+  theme_light() + 
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(limits = c(0,30),
+                     breaks = c(5,10,15,20,25))
+
+```
+
+```{r}
+#herbaceous species richness graph
+herbaceous_plot <- ggplot(compiled_file, aes(x = Mean_CC_Yield, y = Veg_Spps)) +
+  geom_point(aes(x = Mean_CC_Yield, y = Veg_Spps), size = 2) +
+  stat_cor(aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~")), p.accuracy = 0.01, r.accuracy = 0.01,label.x = 1750) + 
+  labs(y = "Herbaceous species richness", x = "Average coffee yield (kg/ha)") + 
+  theme_light() + 
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(limits = c(15,70),
+                     breaks = c(20,40,60))
+```
+
+```{r}
+#bryophyte species richness graph
+bryo_plot <- ggplot(compiled_file, aes(x = Mean_CC_Yield, y = Bryo_Spps)) +
+  geom_point(aes(x = Mean_CC_Yield, y = Bryo_Spps), size = 2) +
+  stat_cor(aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~")), p.accuracy = 0.01, r.accuracy = 0.001, label.x = 1750) + 
+  labs(y = "Bryophyte species richness", x = "Average coffee yield (kg/ha)") + 
+  theme_light() + 
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(limits = c(0,35),
+                     breaks = c(0,5,10,15,20,25,30))
+```
+
+```{r}
+#total species richness graph
+total_plot <- ggplot(compiled_file, aes(x = Mean_CC_Yield, y = Total_Spps_richness)) +
+  geom_point(aes(x = Mean_CC_Yield, y = Total_Spps_richness), size = 2) +
+  stat_smooth(method = "gam", geom = "smooth", linetype = 2) + 
+  stat_cor(aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~")), p.accuracy = 0.001, r.accuracy = 0.01, label.y = 108, label.x = 1750) + 
+  labs(y = "Total species richness", x = "Average coffee yield (kg/ha)") + 
+  theme_light() + 
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(limits = c(33,112),
+                     breaks = c(40,60,80,100))
+```
+
+Once individual figures for each species richness type was made, we used the "ggarrange" command to arrange the figures into one final figure in a 2x2 output. 
+```{r}
+ggarrange(woody_plot,herbaceous_plot,bryo_plot,total_plot,ncol=2,nrow=2)
+```
+
+
